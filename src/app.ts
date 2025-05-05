@@ -85,33 +85,37 @@ function autobind(_: any, _2: string, descriptor: PropertyDescriptor) {
     return adjDescriptor;
 }
 
-class ProjectList {
+abstract class Component<T extends HTMLElement, U extends HTMLElement> {
     templateElement: HTMLTemplateElement;
-    hostElement: HTMLDivElement;
-    element: HTMLElement;
+    hostElement: T;
+    element: U;
+
+    constructor(templateId: string, hostElementId: string, insertAtStart:boolean, newElementId?: string) {
+        this.templateElement = document.getElementById(templateId)! as HTMLTemplateElement;
+        this.hostElement = document.getElementById(hostElementId)! as T;
+
+        const importedNode = document.importNode(this.templateElement.content, true);
+        this.element = importedNode.firstElementChild as U;
+        if(newElementId) {
+            this.element.id = newElementId;
+        }
+        this.attach(insertAtStart);
+    }
+    private attach(insertAtBeginning: boolean) {
+        this.hostElement.insertAdjacentElement(insertAtBeginning ? 'afterbegin' : 'beforeend', this.element);
+    }
+    abstract configure(): void;
+    abstract renderContent(): void;
+}
+
+class ProjectList extends Component<HTMLDivElement, HTMLElement>{
     assignedProjects: Project[];
 
     constructor (private type: 'active' | 'finished') {
-        this.templateElement = document.getElementById('project-list')! as HTMLTemplateElement;
-        this.hostElement = document.getElementById('app')! as HTMLDivElement;
+        super('project-list', 'app', false, `${type}-projects`);
         this.assignedProjects = [];
-        
-        const importedNode = document.importNode(this.templateElement.content, true);
-        this.element = importedNode.firstElementChild as HTMLElement;
-        this.element.id = `${this.type}-projects`;
 
-        projectState.addListener((projects: Project[]) => {
-            const relevantProjects = projects.filter(prj => {
-                if (this.type === 'active') {
-                    return prj.status === ProjectStatus.Active; 
-                }
-                return prj.status === ProjectStatus.Finished;
-            });
-            this.assignedProjects = relevantProjects;
-            this.renderProjects();
-        });
-
-        this.attach();
+        this.configure();
         this.renderContent();
     }
 
@@ -125,14 +129,23 @@ class ProjectList {
         }
     }
 
-    private renderContent() {
+    configure() {
+        projectState.addListener((projects: Project[]) => {
+            const relevantProjects = projects.filter(prj => {
+                if (this.type === 'active') {
+                    return prj.status === ProjectStatus.Active; 
+                }
+                return prj.status === ProjectStatus.Finished;
+            });
+            this.assignedProjects = relevantProjects;
+            this.renderProjects();
+        });
+    }
+
+    renderContent() {
         const listId = `${this.type}-project-list`;
         this.element.querySelector('ul')!.id = listId;
         this.element.querySelector('h2')!.textContent = this.type.toUpperCase() + 'PROJECTS';
-
-    }
-    private attach() {
-        this.hostElement.insertAdjacentElement('beforeend', this.element);
     }
 }
 
